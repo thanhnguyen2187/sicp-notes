@@ -1,0 +1,13 @@
+session_name: sicp
+windows:
+- focus: 'true'
+  layout: main-horizontal
+  options:
+    main-pane-height: 38
+    automatic-rename: off
+  panes:
+  - nvim -S
+  - focus: 'true'
+    shell_command: null
+  start_directory: /home/thanh/Projects/sicp-notes
+  window_name: sicp
