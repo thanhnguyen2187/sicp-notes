@@ -16,7 +16,7 @@
 (define (read-syntax path port) ; set up a function
   (define src-lines (port->lines port)) ; read everything from the port at once
   ;;; read lines
-  (define src-datums (format-datums ''(handle ~a) src-lines))
+  (define src-datums (format-datums '(handle ~a) src-lines))
   ;;; turn each of line into (handle value)
   ; takes a list of
   ; strings and converts each using a `format string`.
@@ -44,9 +44,30 @@
 ;    the first argument is the program context
 ;    the second one is the datum itself
 
-; (provide read-syntax) ; export the function
+(provide read-syntax) ; export the function
 ; 
-; (define-macro (stacker-module-begin HANDLE-EXPR ...)
-;               #'(#%module-begin HANDLE-EXPR ...))
-;               ; #' make code into a syntax object
-; (provide (rename-out [stacker-module-begin #%module-begin]))
+(define-macro (stacker-module-begin HANDLE-EXPR ...)
+              #'(#%module-begin
+                 HANDLE-EXPR ...
+                 (display (first stack))))
+              ; #' make code into a syntax object
+(provide (rename-out [stacker-module-begin #%module-begin]))
+
+(define stack empty)
+
+(define (pop-stack!)
+  (define arg (first stack))
+  (set! stack (rest stack))
+  arg)
+
+(define (push-stack! arg)
+  (set! stack (cons arg stack)))
+
+(define (handle [arg #f])
+  (cond
+    [(number? arg) (push-stack! arg)]
+    [(or (equal? + arg) (equal? * arg))
+     (define op-result (arg (pop-stack!) (pop-stack!)))
+     (push-stack! op-result)]))
+(provide handle)
+(provide + *)
