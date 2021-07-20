@@ -1,4 +1,4 @@
-# Formulating Abstractions with Higher-Order Procedures
+# 1.3 Formulating Abstractions with Higher-Order Procedures
 
 > One of the things we should demand from a powerful programming language is the
 > ability to build abstractions by:
