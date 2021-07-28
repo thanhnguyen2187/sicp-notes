@@ -28,4 +28,7 @@
           (try next))))
   (try first-guess))
 
-(fixed-point cos 1.0)
+(fixed-point (lambda (x)
+               (/ (log 1000)
+                  (log x)))
+             2.0)
