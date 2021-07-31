@@ -5,15 +5,18 @@
 (define tolerance 0.00001)
 (define (fixed-point f
                      first-guess)
+
   (define (close-enough? value-1 value-2)
     (< (abs (- value-1
                value-2))
        tolerance))
+
   (define (try guess)
     (let ((next (f guess)))
       (if [close-enough? guess next]
           next
           (try next))))
+
   (try first-guess))
 
 ;; (fixed-point cos 1.0)
