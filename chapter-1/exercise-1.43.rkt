@@ -18,10 +18,22 @@
 
 #lang sicp
 
-(define (repeated f n)
-  (if [= n 1]
-      f
-      (repeated (lambda (x) (f (f x)))
-                (- n 1))))
+(define (compose f g)
+  (lambda (x) (f (g x))))
 
-((repeated inc 5) 1)
+(define (repeat f
+                times)
+  (define (iterate x times)
+    (if [= times 1]
+        (f x)
+        (iterate (f x)
+                 (- times 1))))
+  (lambda (x) (iterate x times)))
+
+(define (inc-wrapped i)
+  ; (display i)
+  ; (newline)
+  (inc i))
+(define (square x) (* x x))
+
+((repeat square 3) 2)
