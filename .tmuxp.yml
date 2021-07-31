@@ -10,4 +10,4 @@ windows:
   - focus: 'true'
     shell_command: null
   start_directory: /home/thanh/Projects/sicp-notes
-  window_name: sicp
+  window_name: editting
