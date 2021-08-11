@@ -5,13 +5,22 @@
 
 #lang sicp
 
+(define (last l)
+  (if (null? (cdr l))
+      (car l)
+      (last (cdr l))))
+
 (define (reverse l)
-  (if (null? l)
+  (if (or (null? l)
+          (null? (cdr l)))
       l
-      (append (reverse (cdr l))
-              (list (car l)))))
+      (cons (reverse (cdr l))
+            (car l))))
 
 #| (append (list 1 2 3) |#
 #|         (list 3 2 1)) |#
 
+(reverse (list 5))
+(reverse (list 1 2))
 (reverse (list 1 2 3 4 5))
+; (last (list 1 2 3))
