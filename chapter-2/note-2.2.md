@@ -12,7 +12,7 @@
 > - a set of elements is said to be closed under an operation,
 > - if applying the operation to elements in the set produces an element that is
 >   again, an element of the set.
-   
+
 > The difference between the two definitions [using `map`, and not using `map`]
 > is not that the computer is performing a different process (is isn't), but
 > that we think about the process differently. In effect, `map` helps establish
