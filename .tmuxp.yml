@@ -9,5 +9,5 @@ windows:
   - nvim -S
   - focus: 'true'
     shell_command: null
-  start_directory: /home/thanh/Projects/sicp-notes
+  start_directory: /home/thanh/Sources/personal/sicp-notes
   window_name: editting
