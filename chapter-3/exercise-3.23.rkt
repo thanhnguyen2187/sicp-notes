@@ -11,7 +11,7 @@
 ; and `rear-delete-deque!`
 ;
 ; Show how to represent deques using pairs, and give implementation of the
-; operations. All operation should be accomplised in O(1) steps.
+; operations. All operation should be accomplished in O(1) steps.
 
 #lang sicp
 
