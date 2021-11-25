@@ -80,7 +80,9 @@
         'ok)))
 
     (define (insert! keys value kv-pairs-ptr)
-      ; Assume that there is at least one key.
+      ; Assume that there is at least one key. If there is more keys, "save" the
+      ; first key as a pointer and insert it to the current key-value pairs to
+      ; let `lookup` do its work later.
       (let ((kv-pairs (kv-pairs-ptr 'value)))
         (let ((key (car keys))
               (rest-keys (cdr keys)))
