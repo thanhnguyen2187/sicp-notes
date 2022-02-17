@@ -11,12 +11,6 @@
 ;;;;**WARNING: Don't load this file twice (or you'll lose the primitives
 ;;;;  interface, due to renamings of apply).
 
-#lang sicp
-
-#| (#%require (only racket require provide all-defined-out)) |#
-#| (provide (all-defined-out)) |#
-;; (require racket/pretty)
-
 ;;;from section 4.1.4 -- must precede def of metacircular apply
 (define apply-in-underlying-scheme apply)
 
@@ -36,23 +30,13 @@
         ((begin? exp)
          (eval-sequence (begin-actions exp) env))
         ((cond? exp) (eval (cond->if exp) env))
-        ((and? exp)
-         (eval-and (operands exp) env))
-        ((or? exp)
-         (eval-or (operands exp) env))
-        ((let? exp)
-         (eval (let->combination exp) env))
-        ((let*? exp)
-         (eval (let*->nested-lets exp) env))
-        ((while? exp)
-         (eval (while->combination exp) env))
         ((application? exp)
-         (apply-local (eval (operator exp) env)
-                      (list-of-values (operands exp) env)))
+         (apply (eval (operator exp) env)
+                (list-of-values (operands exp) env)))
         (else
          (error "Unknown expression type -- EVAL" exp))))
 
-(define (apply-local procedure arguments)
+(define (apply procedure arguments)
   (cond ((primitive-procedure? procedure)
          (apply-primitive-procedure procedure arguments))
         ((compound-procedure? procedure)
@@ -194,12 +178,7 @@
 
 (define (cond-predicate clause) (car clause))
 
-(define (cond-actions clause)
-  ;; Exercise 4.5
-  (if (tagged-list? (cdr clause) '=>)
-    (cddr clause)
-    (cdr  clause))
-  )
+(define (cond-actions clause) (cdr clause))
 
 (define (cond->if exp)
   (expand-clauses (cond-clauses exp)))
@@ -216,8 +195,7 @@
                        clauses))
             (make-if (cond-predicate first)
                      (sequence->exp (cond-actions first))
-                     (expand-clauses rest))
-            ))))
+                     (expand-clauses rest))))))
 
 ;;;SECTION 4.1.3
 
@@ -247,28 +225,10 @@
 (define the-empty-environment '())
 
 (define (make-frame variables values)
-  (cons variables values)
-  ;; Exercise 4.11
-  ;; (map (lambda (variable value) (cons variable value))
-  ;;      variables
-  ;;      values)
-  )
+  (cons variables values))
 
-(define (make-frame-4-11 pairs)
-  (cons ))
-
-(define (frame-variables frame)
-  (car frame)
-  ;; Exercise 4.11
-  ;; (map (lambda (pair) (car pair))
-  ;;      frame)
-  )
-(define (frame-values frame)
-  (cdr frame)
-  ;; Exercise 4.11
-  ;; (map (lambda (pair) (cdr pair))
-  ;;      frame)
-  )
+(define (frame-variables frame) (car frame))
+(define (frame-values frame) (cdr frame))
 
 (define (add-binding-to-frame! var val frame)
   (set-car! frame (cons var (car frame)))
@@ -294,15 +254,7 @@
         (let ((frame (first-frame env)))
           (scan (frame-variables frame)
                 (frame-values frame)))))
-
-  (define (scan-out-defines body)
-    0)
-
-  ;; Exercise 4.16 a)
-  (if (eq? var '*unassigned*)
-    (error "Unassigned LOOKUP-VARIABLE-VALUE " var)
-    (env-loop env))
-  )
+  (env-loop env))
 
 (define (set-variable-value! var val env)
   (define (env-loop env)
@@ -341,8 +293,7 @@
     (define-variable! 'false false initial-env)
     initial-env))
 
-;[do later]
-;(define the-global-environment (setup-environment))
+;[do later] (define the-global-environment (setup-environment))
 
 (define (primitive-procedure? proc)
   (tagged-list? proc 'primitive))
@@ -354,12 +305,6 @@
         (list 'cdr cdr)
         (list 'cons cons)
         (list 'null? null?)
-        ;; Exercise 4.14
-        ;; The adding does not work since Scheme's `map` expect a procedure,
-        ;; not `(list 'procedure ...)` like the ones we are defining within our
-        ;; own evaluator
-        ;; (list 'map map)
-        ;; (list 'identity identity)
 ;;      more primitives
         ))
 
@@ -404,238 +349,14 @@
                      '<procedure-env>))
       (display object)))
 
-;; Exercise 4.4
-
-(define (and? exp)
-  (tagged-list? exp 'and))
-
-(define (eval-and exp env)
-  (if (null? exp)
-    true
-    (let ((first-clause (car exp)))
-      (if (false? (eval first-clause env))
-          false
-          (eval-and (cdr exp)
-                    env)))))
-
-(define (or? exp)
-  (tagged-list? exp 'or))
-
-(define (eval-or exp env)
-  (if (null? exp)
-    false
-    (let ((first-clause (car exp)))
-      (if (true? (eval first-clause env))
-          true
-          (eval-or (cdr exp)
-                   env)))))
-
-;; Exercise 4.6
-
-(define (let? exp)
-  (tagged-list? exp 'let))
-
-(define (let-vars exp)
-  (map car (cadr exp)))
-
-(define (let-exps exp)
-  (map cadr (cadr exp)))
-
-(define (let-body exp)
-  (cddr exp))
-
-;; Exercise 4.8
-
-(define (named-let? exp)
-  (and (let? exp)
-       (variable? (cadr exp))))
-
-(define (named-let-vars exp)
-  (map car (caddr exp)))
-
-(define (named-let-exps exp)
-  (map cadr (caddr exp)))
-
-(define (named-let-name exp)
-  (cadr exp))
-
-(define (named-let-body exp)
-  (cadddr exp))
-
-(define (make-define variable value)
-  (list 'define variable value))
-
-(define (make-define-procedure name variables body)
-  (make-define (cons name variables) body))
-
-;;
-
-(define (let->combination exp)
-  ;; Exercise 4.8
-  (if (named-let? exp)
-      (let ((name (named-let-name exp))
-            (vars (named-let-vars exp))
-            (exps (named-let-exps exp))
-            (body (named-let-body exp)))
-        (make-begin
-          (list (make-define-procedure name
-                                       vars
-                                       body)
-                (cons name exps))))
-      (cons (make-lambda (let-vars exp)
-                         (let-body exp))
-            (let-exps exp)))
-  )
-
-;; Exercise 4.7
-
-(define (let*? exp)
-  (tagged-list? exp 'let*))
-
-(define (let*-vars exp)
-  (cadr exp))
-
-(define (let*-body exp)
-  (caddr exp))
-
-(define (make-let* vars body)
-  (list 'let* vars body))
-
-(define (let*->nested-lets exp)
-  (let ((vars (let*-vars exp))
-        (body (let*-body exp)))
-    (if (null? vars)
-        body
-        (list 'let (cons (car vars) nil)
-              (let*->nested-lets
-                (make-let* (cdr vars)
-                           body))))))
-
-;; Exercise 4.8
-
-;; Exercise 4.9
-
-(define (while? exp)
-  (tagged-list? exp 'while))
-
-(define (while-condition exp)
-  (cadr exp))
-
-(define (while-body exp)
-  (caddr exp))
-
-(define (while->combination exp)
-  (make-begin (list (make-define-procedure 'loop
-                                           '()
-                                           (list 'if
-                                                 (while-condition exp)
-                                                 (make-begin (list (while-body exp)
-                                                                   '(loop)))))
-                    '(loop))))
-
-(define (for? exp)
-  (tagged-list? exp 'for))
-
-(define (for-inits exp)
-  (cadr exp))
-
-(define (for-condition exp)
-  (caddr exp))
-
-;; Exercise 4.13
-
-(define (make-unbound! var frame)
-  (define (scan vars vals)
-    (cond ((null? vars)
-           (error "No variable found"))
-          ((eq? var (car vars))
-           (begin
-             (set-car!)))
-          (else (scan (cdr vars)
-                      (cdr vals)))))
-  (if (= nil frame)
-    (error (string "No variable found "
-                   var))
-    (scan (frame-variables frame)
-          (frame-values frame))))
-
 ;;;Following are commented out so as not to be evaluated when
 ;;; the file is loaded.
 (define the-global-environment (setup-environment))
-;; (driver-loop)
+; (driver-loop)
 
-;; REPL Tests
+(eval '(cons 1 1) the-global-environment)
 
-(define test-let '(let ((x 0) (y 1)) 10))
-(display (let-vars test-let))
-(display (let-exps test-let))
-(display (let-body test-let))
-(display (let->combination test-let))
+(RESTART 1)
 
-(define test-let* '(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
-                     (* x z)))
-(display (let*-vars test-let*))
-(display (let*-body test-let*))
-(display (let*->nested-lets test-let*))
-
-(define test-named-let '(let f ((a 1) (b 2)) a))
-(display (named-let? test-named-let)) ; #t
-(display (named-let? test-let)) ; #f
-(display (named-let-name test-named-let)) ; f
-(display (named-let-vars test-named-let)) ; (a b)
-(display (named-let-exps test-named-let)) ; (1 2)
-(display (named-let-body test-named-let)) ; a
-
-(display (let->combination test-named-let)) ; ((define (f a b) a) (f 1 2))
-
-(display (make-define-procedure 'f '(a b) 'b))
-
-(define test-while '(while (< x 0) (set! x (inc x))))
-(display test-while)
-(display (while? test-while))
-(display (while-condition test-while))
-(display (while-body test-while))
-(display (while->combination test-while))
-
-(define test-for '(for ((x 0) (> x 10) inc) (display x)))
-(display (for-inits test-for))
-
-
-(display
-  (eval
-    test-let
-    the-global-environment))
-
-(display
-  (eval
-    '(let* ((x 2) (y x)) y)
-    the-global-environment))
-
-(display
-  (eval
-    '(let f ((a 1) (b 2)) a)
-    the-global-environment))
-
-(display
-  (eval
-    test-while
-    the-global-environment))
-
-(display
-  (eval
-    test-for
-    the-global-environment))
-
-(display
-  (eval
-    '(identity '(1 2 3 4))
-    the-global-environment))
-
-(display
-  (eval
-    '(map identity '(1 2 3 4))
-    the-global-environment))
-
-(display the-global-environment)
-(display (map (lambda (x y) (+ x y)) '(1 2 3 4) '(2 3 4 5)))
+'METACIRCULAR-EVALUATOR-LOADED
 
