@@ -11,6 +11,7 @@
 ;;;;**WARNING: Don't load this file twice (or you'll lose the primitives
 ;;;;  interface, due to renamings of apply).
 
+
 #lang sicp
 
 #| (#%require (only racket require provide all-defined-out)) |#
@@ -19,6 +20,53 @@
 
 ;;;from section 4.1.4 -- must precede def of metacircular apply
 (define apply-in-underlying-scheme apply)
+
+(define-syntax ->>
+    (syntax-rules ()
+        ; Each syntax rule is a pair: a pattern to match on, and an expression to
+        ; rewrite to. This first list is the pattern: both args (`->>`, `value`)
+        ; are just variables, which we could name however we want. Since the first
+        ; part of the pattern matches the macro name, we bind it to `->>`, but `_`
+        ; is another popular choice.
+        ; So, this pattern matches, e.g., (->> 3)...
+        ((->> value)
+            ; ...and rewrites to the expression 3, our expected result
+            value)
+
+        ; Here we match a more complex pattern, where the second var is a list--
+        ; that is, a function call. Note the ellipses, which gather multiple items
+        ; into `args` and `rest`.
+        ; This would match, e.g., (->> 3 (+ 1 2) (/ 3))...
+        ((->> value (fn args ...) rest ...)
+            ; ...and rewrite it to (->> (+ 1 2 3) (/ 3)), or (->> 6 (/ 3)).
+            ; Note that we just accomplished the "thread-last" part!
+            ; Obviously we're not at a final value yet: (->> 6 (/ 3)) will invoke
+            ; the macro again. So, we "cycle through," evaluating incrementally,
+            ; until we reach a final value.
+            (->> (fn args ... value) rest ...))
+
+        ; Finally, here we match a named function in the second position:
+        ; e.g.. (->> 3 inc (/ 3))
+        ((->> value fn rest ...)
+            ; ...and pipe it through just like we did above: (->> 4 (/ 3))
+            (->> (fn value) rest ...))))
+
+
+(define-syntax ->
+    (syntax-rules ()
+        ((-> value)
+            value)
+
+        ((-> value
+             (fn args ...)
+             rest ...)
+         (-> (fn value args ...)
+             rest ...))
+
+        ((-> value fn rest ...)
+            (-> (fn value) rest ...))))
+
+(define (inc x) (+ x 1))
 
 ;;;SECTION 4.1.1
 
@@ -229,6 +277,11 @@
 
 
 (define (make-procedure parameters body env)
+  ; Exercise 4.16 c
+  ;
+  ; `make-procedure` is the better place to put `scan-out-defines` since
+  ; `procedure-body` is called by `apply-local`, which means the code gets
+  ; evaluated many times over `apply`ing
   (list 'procedure parameters body env))
 
 (define (compound-procedure? p)
@@ -236,7 +289,11 @@
 
 
 (define (procedure-parameters p) (cadr p))
-(define (procedure-body p) (caddr p))
+(define (procedure-body p)
+  ; (-> p
+  ;     (caddr)
+  ;     ())
+  (caddr p))
 (define (procedure-environment p) (cadddr p))
 
 
@@ -295,14 +352,67 @@
           (scan (frame-variables frame)
                 (frame-values frame)))))
 
-  (define (scan-out-defines body)
-    0)
-
   ;; Exercise 4.16 a)
   (if (eq? var '*unassigned*)
     (error "Unassigned LOOKUP-VARIABLE-VALUE " var)
-    (env-loop env))
-  )
+    (env-loop env)))
+
+(define (define-var clause)
+  (cadr clause))
+
+(define-var '(define a 1))
+(define-body '(define a 1))
+
+(define (define-body clause)
+  (caddr clause))
+
+; 528
+
+(define (scan-out-defines body)
+
+  (let* ((defines (filter (lambda (clause)
+                            (tagged-list? clause 'define))
+                          body))
+         (define-vars-undefined (->> defines
+                                     (map define-var)
+                                     (map (lambda (variable)
+                                            (list variable '*undefined*)))))
+         (define-bodies-set (map (lambda (clause)
+                                   (list 'set!
+                                         (define-var clause)
+                                         (define-body clause)))
+                                 defines))
+         (not-defines (filter (lambda (clause)
+                                (->> 'define
+                                     (tagged-list? clause)
+                                     not))
+                              body)))
+      (-> '(let)
+          (append (list define-vars-undefined))
+          (append define-bodies-set)
+          (append not-defines))))
+
+(display (scan-out-defines '((define y 1) (define x 0) (+ x y))))
+
+(define (filter predicate
+                sequence)
+  (if (null? sequence)
+    nil
+    (let ((element       (car sequence))
+          (rest-sequence (cdr sequence)))
+      (if (predicate element)
+        (cons element
+              (filter predicate
+                      rest-sequence))
+        (filter predicate
+                rest-sequence)))))
+
+(display (filter (lambda (x) (> x 0))
+                 (list -3 -2 -1 0 1 2 3)))
+
+(display (append (list 1 2 3) (list 4)))
+
+(filter (list 1 2 3) (lambda (x) (> x 0)))
 
 (define (set-variable-value! var val env)
   (define (env-loop env)
@@ -559,6 +669,163 @@
     (scan (frame-variables frame)
           (frame-values frame))))
 
+;; Exercise 4.20
+
+(define (letrec? exp)
+  (tagged-list? exp 'letrec))
+
+(define (letrec-bindings exp)
+  (cadr exp))
+
+(define (letrec-body exp)
+  (caddr exp))
+
+(define (to-internal symbol)
+  (string->symbol
+    (string-append "__"
+                   (symbol->string symbol))))
+
+(define (zip sequence-1
+             sequence-2)
+  (if (or (null? sequence-1)
+          (null? sequence-2))
+      '()
+      (cons (list (car sequence-1)
+                  (car sequence-2))
+            (zip  (cdr sequence-1)
+                  (cdr sequence-2)))))
+
+(define (letrec->let exp)
+  (let* ((bindings        (letrec-bindings exp))
+         (body            (letrec-body exp))
+         (vars            (map car bindings))
+         (internal-vars   (map to-internal vars))
+         (init-exps       (map cadr bindings))
+         (outer-let-inits (map (lambda (var)
+                                 (list var ''*unassigned*)) vars))
+         (inner-let-inits (zip internal-vars init-exps))
+         (set-exps        (map (lambda (pair)
+                                 (list 'set! (car pair) (cadr pair))) (zip vars internal-vars))))
+    (list 'let
+          outer-let-inits
+          (append (list 'let
+                        inner-let-inits)
+                  set-exps)
+          body)))
+
+(display (append (list 1 2 3)
+                 (list 4 5 6)))
+
+;; Section 4.1.7
+
+(define (eval-analyze exp env)
+  ((analyze exp) env))
+
+(define (analyze exp)
+  (cond ((self-evaluating? exp) (analyze-self-evaluating exp))
+        ((quoted?          exp) (analyze-quoted          exp))
+        ((variable?        exp) (analyze-variable        exp))
+        ((assignment?      exp) (analyze-assignment      exp))
+        ((definition?      exp) (analyze-definition      exp))
+        ((if?              exp) (analyze-if              exp))
+        ((lambda?          exp) (analyze-lambda          exp))
+        ((begin?           exp) (analyze-sequence        (begin-actions exp)))
+        ((cond?            exp) (analyze                 (cond->if      exp)))
+        ((application?     exp) (analyze-application     exp))
+        ((let?             exp) (analyze-let             exp))
+        (else
+         (error "Unknown expression type -- ANALYZE" exp))))
+
+(define (analyze-self-evaluating exp)
+  (lambda (env) exp))
+
+(define (analyze-quoted exp)
+  (let ((qval (text-of-quotation exp)))
+    (lambda (env) qval)))
+
+(define (analyze-variable exp)
+  (lambda (env) (lookup-variable-value exp env)))
+
+(define (analyze-assignment exp)
+  (let ((var (assignment-variable exp))
+        (vproc (analyze (assignment-value exp))))
+    (lambda (env)
+      (set-variable-value! var (vproc env) env)
+      'ok)))
+
+(define (analyze-definition exp)
+  (let ((var (definition-variable exp))
+        (vproc (analyze (definition-value exp))))
+    (lambda (env)
+      (define-variable! var (vproc env) env)
+      'ok)))
+
+(define (analyze-if exp)
+  (let ((pproc (analyze (if-predicate exp)))
+        (cproc (analyze (if-consequent exp)))
+        (aproc (analyze (if-alternative exp))))
+    (lambda (env)
+      (if (true? (pproc env))
+          (cproc env)
+          (aproc env)))))
+
+(define (analyze-lambda exp)
+  (let ((vars (lambda-parameters exp))
+        (bproc (analyze-sequence (lambda-body exp))))
+    (lambda (env) (make-procedure vars bproc env))))
+
+(define (analyze-sequence exps)
+  (define (sequentially proc1 proc2)
+    (lambda (env) (proc1 env) (proc2 env)))
+  (define (loop first-proc rest-procs)
+    (if (null? rest-procs)
+        first-proc
+        (loop (sequentially first-proc (car rest-procs))
+              (cdr rest-procs))))
+  (let ((procs (map analyze exps)))
+    (if (null? procs)
+        (error "Empty sequence -- ANALYZE"))
+    (loop (car procs) (cdr procs))))
+
+(define (analyze-sequence-4.23 exps)
+  (define (execute-sequence procs env)
+    (cond ((null? (cdr procs))
+           ((car procs) env))
+          (else
+            ((car procs) env)
+            (execute-sequence (cdr procs) env))))
+  (let ((procs (map analyze exps)))
+    (if (null? procs)
+      (error "Empty sequence: ANALYZE")
+      (lambda (env)
+        (execute-sequence procs env)))))
+
+(define (analyze-application exp)
+  (let ((fproc (analyze (operator exp)))
+        (aprocs (map analyze (operands exp))))
+    (lambda (env)
+      (execute-application (fproc env)
+                           (map (lambda (aproc) (aproc env))
+                                aprocs)))))
+
+(define (execute-application proc args)
+  (cond ((primitive-procedure? proc)
+         (apply-primitive-procedure proc args))
+        ((compound-procedure? proc)
+         ((procedure-body proc)
+          (extend-environment (procedure-parameters proc)
+                              args
+                              (procedure-environment proc))))
+        (else
+         (error
+          "Unknown procedure type -- EXECUTE-APPLICATION"
+          proc))))
+
+;; Exercise 4.22
+
+(define (analyze-let exp)
+  (analyze (let->combination exp)))
+
 ;;;Following are commented out so as not to be evaluated when
 ;;; the file is loaded.
 (define the-global-environment (setup-environment))
@@ -600,6 +867,28 @@
 (define test-for '(for ((x 0) (> x 10) inc) (display x)))
 (display (for-inits test-for))
 
+(define test-letrec '(letrec
+                       ((fact (lambda (n)
+                                (if (= n 1)
+                                  1
+                                  (* n
+                                     (fact (- n 1))))))) (fact 10)))
+(define test-letrec-2 '(letrec
+                         ((even? (lambda (n)
+                                   (if (= n 0)
+                                     true
+                                     (odd? (- n 1)))))
+                          (odd? (lambda (n)
+                                  (if (= n 0)
+                                    false
+                                    (even? (- n 1))))))
+                         (even? 10)))
+(display test-letrec)
+(display (letrec? test-letrec)) ; #t
+(display (letrec-bindings test-letrec)) ; (fact (lambda (n) (if (= n 1) 1 (* n (fact (- n 1))))))
+(display (letrec-body test-letrec)) ; (fact 10)
+(display (letrec->let test-letrec))
+(display (letrec->let test-letrec-2))
 
 (display
   (eval
