@@ -50,7 +50,7 @@
                 (operands exp)
                 env))
         (else
-         (error "Unknown expression type -- EVAL" exp))))
+          (error "Unknown expression type -- EVAL" exp))))
 
 (define (actual-value exp env)
   (force-it (eval exp env)))
@@ -64,9 +64,9 @@
          (eval-sequence
           (procedure-body procedure)
           (extend-environment
-           (procedure-parameters procedure)
-           (list-of-delayed-args arguments env) ; changed
-           (procedure-environment procedure))))
+            (procedure-parameters procedure)
+            (list-of-compound-args procedure arguments env) ; changed in 4.31
+            (procedure-environment procedure))))
         (else
          (error
           "Unknown procedure type -- APPLY" procedure))))
@@ -107,10 +107,10 @@
 
 ;; non-memoizing version of force-it
 
-(define (force-it obj)
-  (if (thunk? obj)
-      (actual-value (thunk-exp obj) (thunk-env obj))
-      obj))
+; (define (force-it obj)
+;   (if (thunk? obj)
+;       (actual-value (thunk-exp obj) (thunk-env obj))
+;       obj))
 
 ;; thunks
 
@@ -132,18 +132,18 @@
 
 ;; memoizing version of force-it
 
-(define (force-it obj)
-  (cond ((thunk? obj)
-         (let ((result (actual-value
-                        (thunk-exp obj)
-                        (thunk-env obj))))
-           (set-car! obj 'evaluated-thunk)
-           (set-car! (cdr obj) result)  ; replace exp with its value
-           (set-cdr! (cdr obj) '())     ; forget unneeded env
-           result))
-        ((evaluated-thunk? obj)
-         (thunk-value obj))
-        (else obj)))
+; (define (force-it obj)
+;   (cond ((thunk? obj)
+;          (let ((result (actual-value
+;                         (thunk-exp obj)
+;                         (thunk-env obj))))
+;            (set-car! obj 'evaluated-thunk)
+;            (set-car! (cdr obj) result)  ; replace exp with its value
+;            (set-cdr! (cdr obj) '())     ; forget unneeded env
+;            result))
+;         ((evaluated-thunk? obj)
+;          (thunk-value obj))
+;         (else obj)))
 
 
 ;; A longer list of primitives -- suitable for running everything in 4.2
@@ -165,112 +165,44 @@
 ;;      more primitives
         ))
 
-'LAZY-EVALUATOR-LOADED
+;; Additional implementations
 
-;; Exercise 4.27
+(define (list-of-compound-args procedure exps env)
+  (display procedure) (newline)
+  (display exps) (newline)
+  (let ((params (procedure-parameters procedure)))
+    (map (lambda (param exp)
+           (cond ((eager-param? param) (actual-value exp env))
+                 ((lazy-param? param) (delay-it exp env))
+                 ((lazy-memo-param? param) (delay-it-memo exp env))
+                 (else (error "Invalid parameter -- LIST-OF-COMPOUND-ARGS" exp))))
+         params
+         exps)))
 
-; (let ((env (setup-environment)))
-;   (define (local-eval exp) (eval exp env))
-;   (local-eval '(define count 0))
-;   (local-eval 'count)
-;   (local-eval '(define (id x) (set! count (+ count 1)) x))
-;   (local-eval '(define w (id (id 10))))
+(define (eager-param? exp) (symbol? exp))
+(define (lazy-param? exp) (eq? (cadr exp) 'lazy))
+(define (lazy-memo-param? exp) (eq? (cadr exp) 'lazy-memo))
 
-;   (local-eval '(display count))
-;   (local-eval '(display "\n"))
+(define (thunk-memo? obj) (tagged-list? obj 'thunk-memo))
 
-;   (local-eval '(display w))
-;   (local-eval '(display "\n"))
-
-;   (local-eval '(display count))
-;   (local-eval '(display "\n"))
-
-;   (local-eval '(display w))
-;   (local-eval '(display "\n"))
-
-;   (local-eval '(display count))
-;   (local-eval '(display "\n"))
-
-;   (local-eval '(display w))
-;   (local-eval '(display "\n"))
-
-;   (local-eval '(display count))
-;   (local-eval '(display "\n")))
-
-;; Exercise 4.28
-
-;; Exercise 4.29
-;
-; For non-memoizing version of `force-it`: 100 3
-; For memoizing version of `force-it`: 100 2
-
-; (let ((env (setup-environment)))
-
-;   (define (local-eval exp) (eval exp env))
-
-;   (local-eval '(define count 0))
-;   (local-eval 'count)
-;   (local-eval '(define (id x) (set! count (+ count 1)) x))
-;   (local-eval '(define w (id (id 10))))
-
-;   (local-eval '(define (square x) (* x x)))
-
-;   (local-eval '(display (square (id 10))))
-;   (local-eval '(newline))
-;   (local-eval '(display count)))
-
-;; Exercise 4.30
-
-; Original:
-
-; (define (eval-sequence exps env)
-;   (cond ((last-exp? exps) (eval (first-exp exps) env))
-;         (else (eval (first-exp exps) env)
-;               (eval-sequence (rest-exps exps) env))))
-
-; Cy's version:
-
-; (define (eval-sequence exps env)
-;   (cond ((last-exp? exps) (eval (first-exp exps) env))
-;         (else (actual-value (first-exp exps) env)
-;               (eval-sequence (rest-exps exps) env))))
-
-; (let ((env (setup-environment)))
-
-;   (define (local-eval exp) (eval exp env))
-
-;   (local-eval '(define (for-each proc items)
-;                  (if (null? items)
-;                    'done
-;                    (begin (proc (car items))
-;                           (for-each proc (cdr items))))))
-;   (local-eval '(for-each (lambda (x)
-;                            (newline)
-;                            (display x))
-;                          (list 57 321 88)))
-;   (local-eval '(newline))
-
-;   (local-eval '(define (p1 x)
-;                  (set! x (cons x '(2)))
-;                  x))
-;   (local-eval '(define (p2 x)
-;                  (define (p e)
-;                    e
-;                    x)
-;                  (p (set! x (cons x '(2))))))
-;   (local-eval '(display (p1 1)))
-;   (local-eval '(newline))
-;   (local-eval '(display (p2 1)))
-;   )
-
-;; Exercise 4.31
+(define (force-it obj)
+  (cond ((thunk? obj)
+         (actual-value (thunk-exp obj) (thunk-env obj)))
+        ((thunk-memo? obj)
+         (let ((result (actual-value
+                         (thunk-exp obj)
+                         (thunk-env obj))))
+           (set-car! obj 'evaluated-thunk)
+           (set-car! (cdr obj) result)  ; replace exp with its value
+           (set-cdr! (cdr obj) '())     ; forget unneeded env
+           result))
+        ((evaluated-thunk? obj)
+         (thunk-value obj))
+        (else obj)))
 
 ; (let* ((env (setup-environment))
 ;        (local-eval (lambda (exp) (eval exp env))))
-
-;   (local-eval '(define (f a (b lazy) c (d lazy-memo))
-;                  b))
-
-;   'done)
-
-; (RESTART 1)
+;   (local-eval '(define (f (a lazy) b)
+;                  (+ a b)))
+;   ; (local-eval '(f 1 3))
+;   )
