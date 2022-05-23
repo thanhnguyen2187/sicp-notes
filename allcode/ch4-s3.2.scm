@@ -59,8 +59,7 @@
           (list 'cooper cooper)
           (list 'fletcher fletcher)
           (list 'miller miller)
-          (list 'smith smith)
-          )
+          (list 'smith smith))
     ))
 
 (multiple-dwelling)
