@@ -9,7 +9,7 @@
 
 (define (last-pair l)
   (if (null? (cdr l))
-      (car l)
+      l
       (last-pair (cdr l))))
 
-(last-pair (list 1 2 3 4 5 6))
+(last-pair (list 1 2 3 4 5 (list 6)))
