@@ -71,6 +71,3 @@
 
 (get-register-contents ambiguous-machine 'a)
 
-(assoc 1 '((1 2) (2 3) (4 5)))
-
-(assoc 'key '((key 2) (2 3) (4 5)))
