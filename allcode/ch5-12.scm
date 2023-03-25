@@ -17,6 +17,88 @@
 
 (load "ch5-regsim.scm")
 
+;; utility procedures
+(define (inst-name inst)
+  (if (pair? inst)
+    (car inst)
+    'label))
+
+(define (goto? inst)
+  (and (pair? inst)
+       (eq? (car inst) 'goto)))
+
+(define (save? inst)
+  (and (pair? inst)
+       (eq? (car inst) 'save)))
+
+(define (assign? inst)
+  (and (pair? inst)
+       (eq? (car inst) 'assign)))
+
+(define (restore? inst)
+  (and (pair? inst)
+       (eq? (car inst) 'restore)))
+
+(define (register-name-in-save-or-restore inst)
+  (cadr inst))
+
+(define (register-name-in-goto inst)
+  (cadadr inst))
+
+(define (register-name-in-assign inst)
+  (cadr inst))
+
+(define (source-in-assign inst)
+  (let ((expr (cddr inst)))
+    (if (= 1 (length expr))
+      (car expr)
+      expr)))
+
+; (define (source-in-assign inst)
+;   (let ((expr (cddr inst)))
+;     expr))
+
+;; main modifications
+(define (make-machine register-names ops controller-text)
+  (let ((machine (make-new-machine)))
+    (for-each (lambda (register-name)
+                ((machine 'allocate-register) register-name))
+              register-names)
+    ((machine 'install-operations) ops)    
+    ((machine 'install-instruction-sequence)
+     (assemble controller-text machine))
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;; 5-12 part 1
+    ((machine 'set-inst-names!)
+     (map inst-name controller-text))
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;; 5-12 part 2
+    (let* ((goto-insts (filter goto? controller-text))
+           (registers (map register-name-in-goto goto-insts)))   
+      ((machine 'set-entry-point-registers!) registers))
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;; 5-12 part 3
+    (let* ((save-or-restore-insts
+             (filter (lambda (inst)
+                       (or (save? inst)
+                           (restore? inst)))
+                     controller-text))
+           (register-names (map register-name-in-save-or-restore
+                                save-or-restore-insts)))   
+      ((machine 'set-saved-restored-registers!) register-names))
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;; 5-12 part 4
+    (let* ((assign-insts (filter assign? controller-text))
+           (register-names (map register-name-in-assign
+                                assign-insts))
+           (sources (map source-in-assign assign-insts))
+           (register-source-pairs (map (lambda (register-name source)
+                                         (list register-name source))
+                                       register-names
+                                       sources)))
+      ((machine 'set-register-to-sources!) register-source-pairs))
+    machine))
+
 (define (make-new-machine)
   (let ((pc (make-register 'pc))
         (flag (make-register 'flag))
@@ -53,22 +135,13 @@
               ((instruction-execution-proc (car insts)))
               (execute)))))
       ;; 5-12
-      (define inst-names '())
-      (define entry-point-registers '())
-      (define saved-restored-registers '())
-      (define register-sources '())
-      (define (add-unique sequence item)
-        (if (null? sequence)
-          (list item)
-          (let* ((first-item     (car sequence))
-                 (rest-sequence  (cdr sequence))
-                 (item-str       (symbol->string item))
-                 (first-item-str (symbol->string first-item)))
-            (cond ((string=? first-item-str item-str) sequence)
-                  ((string>? first-item-str item-str) (cons item sequence))
-                  (else (cons first-item
-                              (add-unique rest-sequence item))))
-            )))
+      ; TODO: use `make-red-black-tree` instead of `make-equal-hash-table`
+      ;       to satisfy the requirement that all the instructions should be
+      ;       sorted
+      (define inst-names (make-equal-hash-table))
+      (define entry-point-registers (make-equal-hash-table))
+      (define saved-restored-registers (make-equal-hash-table))
+      (define register-to-sources (make-equal-hash-table))
       ;
       (define (dispatch message)
         (cond ((eq? message 'start)
@@ -87,106 +160,61 @@
               ;; 5-12 part 1
               ((eq? message 'set-inst-names!)
                (lambda (new-inst-names)
-                 (map (lambda (inst-name)
-                        (set! inst-names (add-unique inst-names inst-name)))
-                      new-inst-names)))
-              ((eq? message 'inst-names) inst-names)
+                 (for-each (lambda (inst-name)
+                             (hash-table-set! inst-names inst-name #t))
+                           new-inst-names)))
+              ((eq? message 'inst-names) (hash-table-keys inst-names))
               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
               ;; 5-12 part 2
               ((eq? message 'set-entry-point-registers!)
                (lambda (register-names)
-                 (map (lambda (register-name)
-                        (set!
-                          entry-point-registers
-                          (add-unique entry-point-registers register-name)))
-                      register-names)))
-              ((eq? message 'entry-point-registers) entry-point-registers)
+                 (for-each (lambda (register-name)
+                             (hash-table-set! entry-point-registers register-name #t))
+                           register-names)))
+              ((eq? message 'entry-point-registers) (hash-table-keys entry-point-registers))
               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
               ;; 5-12 part 3
-              ((eq? message 'saved-restored-registers) saved-restored-registers)
+              ((eq? message 'saved-restored-registers) (hash-table-keys saved-restored-registers))
               ((eq? message 'set-saved-restored-registers!)
                (lambda (register-names)
-                 (map (lambda (register-name)
-                        (set!
-                          saved-restored-registers
-                          (add-unique saved-restored-registers register-name)))
-                      register-names)))
+                 (for-each (lambda (register-name)
+                             (hash-table-set! saved-restored-registers register-name #t))
+                           register-names)))
               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
               ;; 5-12 part 4
-              ((eq? message 'set-register-sources!)
-               (lambda (register-sources)
-                 (map (lambda (register-source)
-                        (let* ((register-name (car register-source))
-                               (source-value (cdr register-source))))))))
-              ((eq? message 'register-sources) register-sources)
+              ((eq? message 'set-register-to-sources!)
+               (lambda (register-source-pairs)
+                 (for-each (lambda (register-source-pair)
+                             (let* ((register-name (car register-source-pair))
+                                    (source (cadr register-source-pair))
+                                    (sources (hash-table-ref
+                                               register-to-sources
+                                               register-name
+                                               (lambda () (make-equal-hash-table)))))
+                               ; TODO: find a more elegant way to handle this
+                               (hash-table-set! sources source #t)
+                               (hash-table-set! register-to-sources register-name sources)))
+                           register-source-pairs)))
+              ; TODO: find a better way to deliver the values
+              ((eq? message 'register-to-sources) register-to-sources)
+              ;; end of 5-12
+              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
               (else (error "Unknown request -- MACHINE" message))))
       dispatch)))
-
-(define (make-machine register-names ops controller-text)
-  (let ((machine (make-new-machine)))
-    (for-each (lambda (register-name)
-                ((machine 'allocate-register) register-name))
-              register-names)
-    ((machine 'install-operations) ops)    
-    ((machine 'install-instruction-sequence)
-     (assemble controller-text machine))
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ;; 5-12 part 1
-    ((machine 'set-inst-names!)
-     (map inst-name controller-text))
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ;; 5-12 part 2
-    (let* ((goto-insts (filter goto? controller-text))
-           (registers (map register-name-in-goto goto-insts)))   
-      ((machine 'set-entry-point-registers!) registers))
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ;; 5-12 part 3
-    (let* ((save-or-restore-insts
-             (filter (lambda (inst)
-                       (or (save? inst)
-                           (restore? inst)))
-                     controller-text))
-           (register-names (map register-name-in-save-or-restore
-                                save-or-restore-insts)))   
-      ((machine 'set-saved-restored-registers!) register-names))
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ;; 5-12 part 4
-    machine))
-
-(define (inst-name inst)
-  (if (pair? inst)
-    (car inst)
-    'label))
-
-(define (goto? inst)
-  (and (pair? inst)
-       (eq? (car inst) 'goto)))
-
-(define (save? inst)
-  (and (pair? inst)
-       (eq? (car inst) 'save)))
-
-(define (restore? inst)
-  (and (pair? inst)
-       (eq? (car inst) 'restore)))
-
-(define (register-name-in-save-or-restore inst)
-  (cadr inst))
-
-(define (register-name-in-goto inst)
-  (cadadr inst))
 
 (define fib-machine
   (make-machine
     '(n continue val)
     (list
       (list '< <)
-      (list '- <)
-      (list '+ <)
+      (list '- -)
+      (list '+ +)
       (list 'read read)
       )
     '(
-      (assign n (op read))
+      ;; hard code n's value for faster testing
+      ; (assign n (op read))
+      (assign n (const 10))
       (assign continue (label fib-done))
       fib-loop
       (test (op <) (reg n) (const 2))
@@ -197,7 +225,7 @@
       (save n)                           ; save old value of n
       (assign n (op -) (reg n) (const 1)); clobber n to n-1
       (goto (label fib-loop))            ; perform recursive call
-      afterfib-n-1                         ; upon return, val contains Fib(n-1)
+      afterfib-n-1                       ; upon return, val contains Fib(n-1)
       (restore n)
       (restore continue)
       ;; set up to compute Fib(n-2)
@@ -206,7 +234,7 @@
       (assign continue (label afterfib-n-2))
       (save val)                         ; save Fib(n-1)
       (goto (label fib-loop))
-      afterfib-n-2                         ; upon return, val contains Fib(n-2)
+      afterfib-n-2                       ; upon return, val contains Fib(n-2)
       (assign n (reg val))               ; n now contains Fib(n-2)
       (restore val)                      ; val now contains Fib(n-1)
       (restore continue)
@@ -218,15 +246,20 @@
       (goto (reg continue))
       fib-done)))
 
+(start fib-machine)
+
+(get-register-contents fib-machine 'val)
+
 (fib-machine 'inst-names)
 
 (fib-machine 'entry-point-registers)
 
 (fib-machine 'saved-restored-registers)
 
-(cadadr (list 1 (list 2 3)))
-
-(assq 'ab '((a 1) (b 2) (c 3)))
-
-(equal? (list 1 2) (list 1 2))
+(let* ((ht (fib-machine 'register-to-sources))
+       (keys (hash-table-keys ht))
+       (vals (hash-table-values ht))
+       (vals-2 (map hash-table-keys vals)))
+  (list (caddr keys)
+        (caddr vals-2)))
 
