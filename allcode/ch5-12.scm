@@ -23,6 +23,7 @@
     (car inst)
     'label))
 
+; TODO: change implementation of these functions to using `inst-name`
 (define (goto? inst)
   (and (pair? inst)
        (eq? (car inst) 'goto)))
