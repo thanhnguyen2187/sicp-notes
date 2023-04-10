@@ -38,15 +38,15 @@
               (cadr val)
               (error "Unknown register:" name))))
       (define (execute)
-        ;; Exercise 5.15
-        (set! instruction-count (+ 1 instruction-count))
-        ;;
         (let ((insts (get-contents pc)))
           (if (null? insts)
-              'done
-              (begin
-                ((instruction-execution-proc (car insts)))
-                (execute)))))
+            'done
+            (begin
+              ;; Exercise 5.15
+              (set! instruction-count (+ 1 instruction-count))
+              ;;
+              ((instruction-execution-proc (car insts)))
+              (execute)))))
       (define (dispatch message)
         (cond ((eq? message 'start)
                (set-contents! pc the-instruction-sequence)
