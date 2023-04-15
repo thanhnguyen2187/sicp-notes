@@ -7,9 +7,72 @@
 ; ---
 ;
 ; The exercise is quite challenging, as putting a `current-label` inside
-; `make-new-machine` will not work as expected.
+; `make-new-machine` can handle the case of executing `goto (label ...)`, since
+; extracting the label in this case is easy. It is not the same with `goto (reg
+; ...)`, as the content of a register in this case is a list of instructions
+; instead of the real label.
+;
+; I could not find a better way than modifying the instructions' structure
+;
+; - Old version: `(<raw text> . <procedure>)`, for example `((goto (reg
+; continue))
+; - New version: `(<label> <raw text> <procedure>)`
+;
+; and the functions that use `inst`:
+;
+; - `make-instruction`
+; - `instruction-text`
+; - `instruction-execution-proc`
+; - `set-instruction-execution-proc!`
 
 (load "ch5-regsim.scm")
+
+;; instruction structure procedures
+
+(define (make-instruction label text)
+  (list label text '()))
+
+(define (instruction-label inst)
+  (list-ref inst 0))
+
+(define (instruction-text inst)
+  (list-ref inst 1))
+
+(define (instruction-execution-proc inst)
+  (list-ref inst 2))
+
+(define (set-instruction-execution-proc! inst proc)
+  (list-set! inst 2 proc))
+
+(define (assemble controller-text machine)
+  (extract-labels
+    '*unassigned*
+    controller-text
+    (lambda (insts labels)
+      (update-insts! insts labels machine)
+      insts)))
+
+(define (extract-labels current-label
+                        text
+                        receive)
+  (if (null? text)
+      (receive '() '())
+      (let* ((next-inst (car text))
+             (next-inst-label? (symbol? next-inst))
+             (label (if next-inst-label?
+                      next-inst
+                      current-label)))
+        (extract-labels
+          label
+          (cdr text)
+          (lambda (insts labels)
+            (if next-inst-label?
+              (receive insts
+                       (cons (make-label-entry label insts)
+                             labels))
+              (receive (cons (make-instruction label next-inst)
+                             insts)
+                       labels)))))))
 
 ;; main procedures
 
@@ -22,8 +85,6 @@
         (instruction-count 0)
         ;; Exercise 5.16
         (trace #f)
-        ;;
-        (current-label '*unassigned*)
         )
     (let ((the-ops
            (list (list 'initialize-stack
@@ -52,42 +113,20 @@
               'done
               ;; Exercise 5.16
               (let* ((inst (car insts))
+                     (inst-label (instruction-label inst))
                      (inst-text (instruction-text inst))
                      (inst-proc (instruction-execution-proc inst)))
                 ;; Exercise 5.15
                 (set! instruction-count (+ 1 instruction-count))
-                ;;
+                ;; Exercise 5.17
                 (if trace
                   (begin
                     (display "Label: ")
-                    (display current-label)
+                    (display inst-label)
                     (display "; ")
                     (display "Executing instruction: ")
                     (display inst-text)
                     (newline)))
-                ;; Exercise 5.17
-                (let ((inst-name (car inst-text)))
-                  (if (or (eq? inst-name 'branch)
-                          (eq? inst-name 'goto))
-                    (let ((dest (cadr inst-text)))
-                      ; fetch the destination from something like
-                      ;
-                      ;   (goto (reg continue))
-                      ;   ; or
-                      ;   (branch (label base-case))
-                      (cond ((label-exp? dest)
-                             (set! current-label (label-exp-label dest)))
-                            ((register-exp? dest)
-                             ; TODO: find another way to handle correctly handle
-                             ;       this since `register-exp-reg` only returns
-                             ;       `(reg continue)`, and
-                             ;       `(get-contents (lookup-register (register-exp-reg dest)))`
-                             ;       does not actually return the label's name,
-                             ;       but return a list of instructions instead
-                             (set! current-label dest)
-                             )
-                            (else (error "Unreachable code -- MAKE-NEW-MACHINE EXECUTE " inst-text))))))
-                ;;
                 (inst-proc)
                 (execute)))))
               ;;
@@ -111,7 +150,7 @@
               ;; Exercise 5.16
               ((eq? message 'trace-on!) (set! trace #t))
               ((eq? message 'trace-off!) (set! trace #f))
-              ;;
+              ((eq? message 'trace-on?) trace)
               (else (error "Unknown request -- MACHINE" message))))
       dispatch)))
 
