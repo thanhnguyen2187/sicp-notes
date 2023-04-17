@@ -78,7 +78,35 @@
 (define (set-instruction-execution-proc! inst proc)
   (list-set! inst 3 proc))
 
-;;
+;; register procedures
+
+(define (make-register name)
+  (let ((contents '*unassigned*)
+        (tracing 'off))
+    (define (dispatch message)
+      (cond ((eq? message 'get) contents)
+            ((eq? message 'set)
+             (lambda (value)
+               ;; Exercies 5.18
+               (if (eq? tracing 'on)
+                 (begin
+                   (display "Register name: ") (display name)
+                   (newline)
+                   (display "Old value: ") (display contents)
+                   (newline)
+                   (display "New value: ") (display value)
+                   (newline)))
+               ;;
+               (set! contents value)))
+            ((eq? message 'tracing-on!)
+             (set! tracing 'on))
+            ((eq? message 'tracing-off!)
+             (set! tracing 'off))
+            (else
+             (error "Unknown request -- REGISTER" message))))
+    dispatch))
+
+;; breakpoint procedures
 
 (define (make-breakpoint label offset)
   (list label offset))
@@ -87,7 +115,7 @@
   (member (make-breakpoint label offset)
           breakpoints))
 
-;;
+;; assembling procedures
 
 (define (assemble controller-text machine)
   (extract-labels
@@ -124,6 +152,8 @@
               (receive (cons (make-instruction label offset next-inst)
                              insts)
                        labels)))))))
+
+;; utility procedures
 
 (define (set-breakpoint machine label offset)
   ((machine 'set-breakpoint) label offset))
@@ -235,6 +265,15 @@
               ((eq? message 'trace-on!) (set! trace #t))
               ((eq? message 'trace-off!) (set! trace #f))
               ((eq? message 'trace-on?) trace)
+              ;; Exercise 5.18
+              ((eq? message 'reg-tracing-on!)
+               (lambda (reg-name)
+                 (let ((reg (lookup-register reg-name)))
+                   (reg 'tracing-on!))))
+              ((eq? message 'reg-tracing-off!)
+               (lambda (reg-name)
+                 (let ((reg (lookup-register reg-name)))
+                   (reg 'tracing-off!))))
               ;; Exercise 5.19
               ((eq? message 'set-breakpoint)
                (lambda (label offset)
@@ -312,7 +351,7 @@
 (let* ((fib-controller-text
          '(controller
              ; (assign n (op read))
-             (assign n (const 4))
+             (assign n (const 6))
              (assign continue (label fib-done))
            fib-loop
              (test (op <) (reg n) (const 2))
@@ -353,5 +392,6 @@
                                   fib-ops
                                   fib-controller-text)))
   (fib-machine 'trace-on!)
+  ((fib-machine 'reg-tracing-on!) 'val)
   (start fib-machine))
 
