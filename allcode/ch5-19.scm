@@ -92,9 +92,13 @@
                  (begin
                    (display "Register name: ") (display name)
                    (newline)
-                   (display "Old value: ") (display contents)
+                   ; `write` is used instead of `display`
+                   ; to handle the case when `contents` or `value` has circular
+                   ; references (procedure `f` is stored as `(procedure f
+                   ; [env])`, in which `env` contains `f` to allow recursion)
+                   (display "Old value: ") (write contents)
                    (newline)
-                   (display "New value: ") (display value)
+                   (display "New value: ") (write value)
                    (newline)))
                ;;
                (set! contents value)))
@@ -165,7 +169,7 @@
   ((machine 'cancel-breakpoint) label offset))
 
 (define (cancel-all-breakpoints machine)
-  (machine 'cancel-all-breakpoints))
+  ((machine 'cancel-all-breakpoints)))
 
 ;; main procedures
 
