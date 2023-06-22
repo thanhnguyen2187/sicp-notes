@@ -216,9 +216,9 @@ print-result
   (assign continue (label print-result-1))
   (goto (label force-it))
 print-result-1
+  ;;
   (perform (op user-print) (reg val))
   (goto (label read-eval-print-loop))
-  ;;
 
 unknown-expression-type
   (assign val (const unknown-expression-type-error))
@@ -336,18 +336,19 @@ ev-application
   (save unev)
   (assign exp (op operator) (reg exp))
   (assign continue (label ev-appl-did-operator))
-  ;; Exercise 5.25
-  ; force proc
-  ; TODO: there might be case where a `thunk` is returned?
-  (goto (label actual-value))
-  ; (goto (label eval-dispatch))
-  ;;
+  (goto (label eval-dispatch))
 ev-appl-did-operator
   (restore unev)
   (restore env)
+  ;; Exercise 5.25
+  ; force proc
+  (assign exp (reg val))
+  (assign continue (label ev-appl-did-operator-1))
+  (goto (label force-it))
+ev-appl-did-operator-1
+  ;;
   (assign argl (op empty-arglist))
   (assign proc (reg val))
-
   (test (op no-operands?) (reg unev))
   (branch (label apply-dispatch))
   (save proc)
@@ -360,7 +361,7 @@ ev-appl-operand-loop
   (save unev)
   (assign continue (label ev-appl-accumulate-arg))
   ;; Exercise 5.25
-  ; change from evaluating to delay
+  ; change from evaluating to delaying
   ; (goto (label eval-dispatch))
   (goto (label delay-it))
   ;;
@@ -374,7 +375,7 @@ ev-appl-accumulate-arg
 ev-appl-last-arg
   (assign continue (label ev-appl-accum-last-arg))
   ;; Exercise 5.25
-  ; change from evaluating to delay
+  ; change from evaluating to delaying
   ; (goto (label eval-dispatch))
   (goto (label delay-it))
   ;;
@@ -622,8 +623,7 @@ ev-definition-1
 
 (try 0 (/ 1 0))
 
-(define (g a b)
-  a)
+(define (lazy-car a b) a)
 
-(g 1 (/ 1 0))
+(lazy-car 1 (/ 1 0))
 
