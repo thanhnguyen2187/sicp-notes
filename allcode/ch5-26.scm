@@ -27,9 +27,10 @@
 ; | 4 |          169 |            10 |
 ; | 5 |          204 |            10 |
 ; | 6 |          239 |            10 |
-; | 7 |         5040 |            10 |
+; | 7 |          274 |            10 |
 ;
-; total-pushes = (+ 29 (* 45 n))
+; total-pushes = (+ 29 (* 35 n))
+; maximum-depth = 10
 
 (load "load-eceval.scm")
 
