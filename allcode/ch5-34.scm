@@ -8,7 +8,9 @@
 ;
 ; ---
 ;
-; ...
+; The essential difference is that in the recursive version, `argl` and `proc`
+; is saved for the `*` operator in every recursive call. The saving builds up
+; stack space.
 
 (load "ch5-compiler.scm")
 
