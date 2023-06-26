@@ -12,6 +12,46 @@
 ; and more special cases we could incorporate all the compiler's optimizations,
 ; and that this would eliminate the advantage of compilation altogether. What do
 ; you think of this idea?
+;
+; ---
+;
+; a.
+;
+; For unmodified version:
+;
+;   ;;; EC-Eval input:
+;   (define (f x) (+ x 1))
+;   
+;   (total-pushes = 3 maximum-depth = 3)
+;   ;;; EC-Eval value:
+;   ok
+;   
+;   ;;; EC-Eval input:
+;   (f 2)
+;   
+;   (total-pushes = 13 maximum-depth = 5)
+;   ;;; EC-Eval value:
+;   3
+;
+; For modified version: 
+;
+;   ;;; EC-Eval input:
+;   (define (f x) (+ x 1))
+;   
+;   (total-pushes = 3 maximum-depth = 3)
+;   ;;; EC-Eval value:
+;   ok
+;   
+;   ;;; EC-Eval input:
+;   (f 2)
+;   
+;   (total-pushes = 9 maximum-depth = 5)
+;   ;;; EC-Eval value:
+;   3
+;
+; b. If the evaluator implements that kind of optimization, it is going to be...
+; not that much different from a compiler, but with a built-in low-level code
+; evaluator, and be much more complex than the compiler itself.
 
 (load "load-eceval.scm")
 
@@ -88,17 +128,30 @@ ev-lambda
               (reg unev) (reg exp) (reg env))
   (goto (reg continue))
 
+;; Exercise 5.32
 ev-application
   (save continue)
-  (save env)
   (assign unev (op operands) (reg exp))
-  (save unev)
   (assign exp (op operator) (reg exp))
+
+  ; (test (op variable?) (reg exp))
+  ; (branch (label ev-appl-symbol-operator))
+
+  (save unev)
+  (save env)
   (assign continue (label ev-appl-did-operator))
   (goto (label eval-dispatch))
+ev-appl-symbol-operator
+  (assign proc (op lookup-variable-value) (reg exp) (reg env))
+  (assign argl (op empty-arglist))
+  (test (op no-operands?) (reg unev))
+  (branch (label apply-dispatch))
+  (save proc)
+  (goto (label ev-appl-operand-loop))
+;;
 ev-appl-did-operator
-  (restore unev)
   (restore env)
+  (restore unev)
   (assign argl (op empty-arglist))
   (assign proc (reg val))
   (test (op no-operands?) (reg unev))
@@ -230,4 +283,6 @@ ev-definition-1
    )))
 
 (start eceval)
+
+(define (f x) (+ x 1))
 
