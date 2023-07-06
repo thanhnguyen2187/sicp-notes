@@ -82,6 +82,8 @@
 
 ;; b.
 
+; TODO: also modify `compile-application` to remove the primitive branches
+
 (define (primitive-application? exp)
   (and (pair? exp)
        (> (length exp) 0)
