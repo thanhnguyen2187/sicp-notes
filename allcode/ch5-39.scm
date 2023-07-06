@@ -10,16 +10,16 @@
   (list frame-number displacement-number))
 
 (define (lexical-address-lookup
-          runtime-env
+          run-time-env
           address
           ; the run-time environment is a list of frames, each
           ; containing a list of variables
           )
-  (if (null? runtime-env)
+  (if (null? run-time-env)
     '*unassigned*
     (let ((frame-number (car address))
           (displacement-number (cadr address))
-          (frame (car runtime-env)))
+          (frame (car run-time-env)))
       (cond ((null? frame) '*unassigned*)
             ((and (= frame-number 0) (= displacement-number 0))
              (car frame))
@@ -30,7 +30,7 @@
             ((> frame-number 0)
              (lexical-address-lookup
                (make-lexical-address (- frame-number 1) displacement-number)
-               (cdr runtime-env))))))
+               (cdr run-time-env))))))
   )
 
 (lexical-address-lookup
@@ -39,14 +39,14 @@
     (4 5 6)))
 
 (define (lexical-address-set!
-          runtime-env
+          run-time-env
           address
           value)
-  (if (null? runtime-env)
-    (error "LEXICAL-ADDRESS-SET! received null runtime-env")
+  (if (null? run-time-env)
+    (error "LEXICAL-ADDRESS-SET! received null run-time-env")
     (let ((frame-number (car address))
           (displacement-number (cadr address))
-          (frame (car runtime-env)))
+          (frame (car run-time-env)))
       (cond ((null? frame) (error "LEXICAL-ADDRESS-SET! received null frame"))
             ((and (= frame-number 0) (= displacement-number 0))
              (begin
@@ -59,7 +59,7 @@
                value))
             ((> frame-number 0)
              (lexical-address-set!
-               (cdr runtime-env)
+               (cdr run-time-env)
                (make-lexical-address (- frame-number 1) displacement-number)
                value))))))
 
