@@ -10,14 +10,12 @@
   (list frame-number displacement-number))
 
 (define (find-variable variable compile-time-env)
-
   (define (find-in-frame variable frame)
     (define (iterate index variable frame)
       (cond ((null? frame) 'not-found)
             ((eq? variable (car frame)) index)
             (else (iterate (+ index 1) variable (cdr frame)))))
     (iterate 0 variable frame))
-
   (define (iterate frame-number
                    variable
                    compile-time-env)
@@ -30,7 +28,6 @@
                    variable
                    (cdr compile-time-env))
           (make-lexical-address frame-number found-displacement-number)))))
-
   (iterate 0 variable compile-time-env))
 
 (find-variable 'c '((y z) (a b c d e) (x y)))
