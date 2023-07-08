@@ -21,6 +21,8 @@
 ; `compile-variable` and `compile-assignment` use the compile-time environment
 ; in order to generate the appropriate lexical address.
 
+(load "ch5-compiler.scm")
+
 (define (compile exp target linkage compile-time-env)
   (cond ((self-evaluating? exp)
          (compile-self-evaluating exp target linkage))
