@@ -193,6 +193,8 @@
 
 ;; modify "ch5-compiler.scm"
 
+;; Exercise 5.40 and 5.42
+
 (define (compile exp target linkage compile-time-env)
   (cond ((self-evaluating? exp)
          (compile-self-evaluating exp target linkage))
@@ -370,6 +372,55 @@
                             (construct-arglist operand-codes)
                             (compile-procedure-call target linkage)))))
 
+;; Exercise 5.43
+
+(define (filter-map pred func seq)
+  (map func
+       (filter pred seq)))
+
+(define (invert pred)
+  (lambda (arg)
+    (not (pred arg))))
+
+(define (to-assignment-exps define-exps)
+  (let* ((variables (map definition-variable define-exps))
+         (values (map definition-value define-exps))
+         (variables-unassigned (map (lambda (variable)
+                                      (list variable ''*unassigned*))
+                                    variables))
+         (variables-assignment (map (lambda (variable value)
+                                      (list 'set! variable value))
+                                    variables
+                                    values)))
+    ; variables
+    (append (list 'let variables-unassigned)
+            variables-assignment)
+    ))
+
+(to-assignment-exps '((define a 1) (define b 2)))
+
+(define (scanning-out lambda-body)
+  (let ((define-exps (filter definition? lambda-body))
+        (other-exps (filter (invert definition?) lambda-body)))
+    (append (to-assignment-exps define-exps)
+            other-exps)))
+
+(scanning-out '((define a 1) (define b 2) (+ a b)))
+
+;;
+
+;; Exercise 5.38
+;; 
+;; In theory, changing this definition in `ch5-38.scm` and adding
+;; `compile-time-env` accordingly should work.
+
+(define (primitive-application? exp compile-time-env)
+  (let (operator (car exp))
+    (and (pair? exp)
+         (> (length exp) 0)
+         (memq operator '(= + - / * > <))
+         (eq? 'not-found (find-variable operator compile-time-env)))))
+
 ;; testing
 
 (format-compiled-code
@@ -404,3 +455,8 @@
            'next
            '(())))
 
+(format-compiled-code
+  (compile-definition '(define (f x) (+ x 1)) 'val 'next '(())))
+
+(format-compiled-code
+  (compile-definition '(let ((x 1) (y 2)) (+ x y)) 'val 'next '(())))
