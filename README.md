@@ -26,5 +26,5 @@ expected.
 
 Demonstration:
 
-![](demo-repl-flow.gif)
+![](demo-vim-repl.gif)
 
