@@ -15,6 +15,9 @@
   (display expression)
   (newline))
 
+(define (compile-and-run? exp)
+  (tagged-list? exp 'compile-and-run))
+
 (define eceval-operations
   (list
    ;;primitive Scheme operations
@@ -83,8 +86,9 @@
    (list 'compiled-procedure-entry compiled-procedure-entry)
    (list 'compiled-procedure-env compiled-procedure-env)
 
-   ;; exercise 5.48
-   (list 'compile-and-run compile-and-run)
+   ;; Exercise 5.48
+   (list 'compile-and-run? compile-and-run?)
+   ;;
    ))
 
 (define eceval
@@ -153,6 +157,10 @@ eval-dispatch
   (branch (label ev-lambda))
   (test (op begin?) (reg exp))
   (branch (label ev-begin))
+  ;; Exercise 5.48
+  (test (op compile-and-run?) (reg exp))
+  (branch (label ev-compile-and-run))
+  ;;
   (test (op application?) (reg exp))
   (branch (label ev-application))
   (goto (label unknown-expression-type))
@@ -322,6 +330,14 @@ ev-definition-1
    (op define-variable!) (reg unev) (reg val) (reg env))
   (assign val (const ok))
   (goto (reg continue))
+
+ev-compile-and-run
+  (assign val (const wip))
+  (goto (reg continue))
    )))
 
 (start-eceval)
+
+(compile-and-run 1)
+
+(+ 1 2 3)
