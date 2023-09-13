@@ -10,13 +10,11 @@
 (load "load-eceval-compiler")
 (load "format-compiled-code")
 
-(define (compile-and-run expression)
-  (display "WIP Compiling ")
-  (display expression)
-  (newline))
-
 (define (compile-and-run? exp)
   (tagged-list? exp 'compile-and-run))
+
+(define (assemble-eceval controller-text)
+  (assemble controller-text eceval))
 
 (define eceval-operations
   (list
@@ -88,6 +86,10 @@
 
    ;; Exercise 5.48
    (list 'compile-and-run? compile-and-run?)
+   (list 'compile-and-run-exp compile-and-run-exp)
+   (list 'compile compile)
+   (list 'statements statements)
+   (list 'assemble assemble-eceval)
    ;;
    ))
 
@@ -326,18 +328,43 @@ ev-definition-1
   (restore continue)
   (restore env)
   (restore unev)
-  (perform
-   (op define-variable!) (reg unev) (reg val) (reg env))
+  (perform (op define-variable!) (reg unev) (reg val) (reg env))
   (assign val (const ok))
   (goto (reg continue))
 
 ev-compile-and-run
-  (assign val (const wip))
-  (goto (reg continue))
+  (assign exp (op compile-and-run-exp) (reg exp))
+  (save continue)
+  (assign continue (label ev-compile-and-run-1))
+  (goto (label eval-dispatch))
+ev-compile-and-run-1
+  (restore continue)
+  (assign exp (reg val))
+  (assign val (op compile) (reg exp) (const val) (const return))
+  (assign val (op statements) (reg val))
+  (assign val (op assemble) (reg val))
+  (goto (reg val))
    )))
 
 (start-eceval)
 
-(compile-and-run 1)
-
 (+ 1 2 3)
+
+(define fact-code
+  '(define (factorial n)
+     (if (= n 1)
+       1
+       (* (factorial (- n 1)) n))))
+
+(factorial 5)
+
+(compile-and-run fact-code)
+
+(factorial 5)
+
+(format-compiled-code (compile fact-code 'val 'return))
+
+(get-register-contents eceval 'exp)
+
+(get-register-contents eceval 'argl)
+
