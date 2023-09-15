@@ -13,6 +13,9 @@
 (define (compile-and-run? exp)
   (tagged-list? exp 'compile-and-run))
 
+(define (compile-and-run-exp exp)
+  (cadr exp))
+
 (define (assemble-eceval controller-text)
   (assemble controller-text eceval))
 
@@ -356,15 +359,7 @@ ev-compile-and-run-1
        1
        (* (factorial (- n 1)) n))))
 
-(factorial 5)
-
 (compile-and-run fact-code)
 
 (factorial 5)
-
-(format-compiled-code (compile fact-code 'val 'return))
-
-(get-register-contents eceval 'exp)
-
-(get-register-contents eceval 'argl)
 
