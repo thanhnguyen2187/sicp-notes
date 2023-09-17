@@ -9,6 +9,69 @@
 (load "load-eceval-compiler")
 (load "format-compiled-code")
 
+;; Modify the compiler
+
+(define primitive-procedures
+  (list (list 'car car)
+        (list 'cdr cdr)
+        (list 'cons cons)
+        (list 'null? null?)
+;;      more primitives
+        (list '+ +)
+        (list '- -)
+        (list '* *)
+        (list '/ /)
+        (list 'display display)
+        (list 'newline newline)
+        (list 'read read)
+        (list 'pair? pair?)
+        (list 'eq? eq?)
+        ))
+
+;; from chapter 4 to turn `let` expression to `lambda`
+
+(define (let? exp) (tagged-list? exp 'let))
+(define (let-bindings exp) (cadr exp))
+(define (let-body exp) (cddr exp))
+
+(define (let-var binding) (car binding))
+(define (let-val binding) (cadr binding))
+
+(define (make-combination operator operands) (cons operator operands))
+
+(define (let->combination exp)
+  ;;make-combination defined in earlier exercise
+  (let ((bindings (let-bindings exp)))
+    (make-combination (make-lambda (map let-var bindings)
+                                   (let-body exp))
+                      (map let-val bindings))))
+
+(define (compile exp target linkage)
+  (cond ((self-evaluating? exp)
+         (compile-self-evaluating exp target linkage))
+        ((quoted? exp) (compile-quoted exp target linkage))
+        ((variable? exp)
+         (compile-variable exp target linkage))
+        ((assignment? exp)
+         (compile-assignment exp target linkage))
+        ;; Exercise 5.50
+        ((let? exp)
+         (compile-application (let->combination exp) target linkage))
+        ;;
+        ((definition? exp)
+         (compile-definition exp target linkage))
+        ((if? exp) (compile-if exp target linkage))
+        ((lambda? exp) (compile-lambda exp target linkage))
+        ((begin? exp)
+         (compile-sequence (begin-actions exp)
+                           target
+                           linkage))
+        ((cond? exp) (compile (cond->if exp) target linkage))
+        ((application? exp)
+         (compile-application exp target linkage))
+        (else
+         (error "Unknown expression type -- COMPILE" exp))))
+
 ;; Reuse from exercise 5.49
 
 (define (assemble-eceval controller-text)
@@ -127,6 +190,25 @@ print-result
 (define (prompt-for-input string)
   (newline) (newline) (display string) (newline))
 
+(define (announce-output string)
+  (newline) (display string) (newline))
+
+(define (compound-procedure? p)
+  (tagged-list? p 'procedure))
+
+(define (tagged-list? exp tag)
+  (if (pair? exp)
+      (eq? (car exp) tag)
+      false))
+
+(define (user-print object)
+  (if (compound-procedure? object)
+      (display (list 'compound-procedure
+                     (procedure-parameters object)
+                     (procedure-body object)
+                     '<procedure-env>))
+      (display object)))
+
 (define (driver-loop)
   (prompt-for-input input-prompt)
   (let ((input (read)))
@@ -137,4 +219,5 @@ print-result
       (user-print output)))
   (driver-loop))
 
-; TODO: add `newline` and `display` to the primitive list
+(driver-loop)
+
