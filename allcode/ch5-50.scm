@@ -17,15 +17,35 @@
         (list 'cons cons)
         (list 'null? null?)
 ;;      more primitives
+        (list 'not not)
+        (list 'apply apply)
         (list '+ +)
         (list '- -)
         (list '* *)
         (list '/ /)
+        (list '= =)
         (list 'display display)
         (list 'newline newline)
         (list 'read read)
         (list 'pair? pair?)
         (list 'eq? eq?)
+
+        (list 'symbol? symbol?)
+        (list 'string? string?)
+        (list 'number? number?)
+        (list 'list list)
+
+        (list 'cadr cadr)
+        (list 'cddr cddr)
+        (list 'caddr caddr)
+        (list 'cdddr cdddr)
+        (list 'caadr caadr)
+        (list 'cdadr cdadr)
+        (list 'cadddr caddr)
+        (list 'cddddr cdddr)
+        (list 'length length)
+        (list 'set-car! set-car!)
+        (list 'set-cdr! set-cdr!)
         ))
 
 ;; from chapter 4 to turn `let` expression to `lambda`
@@ -182,42 +202,40 @@ print-result
 
 (start-eceval)
 
-;; metacircular evaluator
+;;;; Metacircular Evaluator
 
-(define input-prompt ";;; M-Eval input:")
-(define output-prompt ";;; M-Eval value:")
+(define apply-in-underlying-scheme (cadr apply))
 
-(define (prompt-for-input string)
-  (newline) (newline) (display string) (newline))
+; load from `ch4-mceval`, minus the definition of `apply-in-underlying-scheme`
 
-(define (announce-output string)
-  (newline) (display string) (newline))
+(define (map proc items)
+  (if (null? items)
+      '()
+      (cons (proc (car items))
+            (map proc (cdr items)))))
 
-(define (compound-procedure? p)
-  (tagged-list? p 'procedure))
+(define primitive-procedures
+  (list (list 'car car)
+        (list 'cdr cdr)
+        (list 'cons cons)
+        (list 'null? null?)
+;;      more primitives
+        (list '+ +)
+        (list '- -)
+        (list '* *)
+        (list '/ /)
+        (list '= =)
+        ))
 
-(define (tagged-list? exp tag)
-  (if (pair? exp)
-      (eq? (car exp) tag)
-      false))
-
-(define (user-print object)
-  (if (compound-procedure? object)
-      (display (list 'compound-procedure
-                     (procedure-parameters object)
-                     (procedure-body object)
-                     '<procedure-env>))
-      (display object)))
-
-(define (driver-loop)
-  (prompt-for-input input-prompt)
-  (let ((input (read)))
-    (let ((output input)
-          ; (output (eval input the-global-environment))
-          )
-      (announce-output output-prompt)
-      (user-print output)))
-  (driver-loop))
+(define the-global-environment (setup-environment))
+; (define the-global-environment '())
 
 (driver-loop)
+
+(define (factorial n)
+  (if (= n 1)
+    1
+    (* n (factorial (- n 1)))))
+
+(factorial 5)
 
